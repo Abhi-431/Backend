@@ -33,8 +33,7 @@ const registerUser=asyncHandler(async (req,res)=>{
     const {fullname,email,username,password}=req.body//1
 
     if([fullname,email,username,password].some((field)=>//read it 
-    field?.trim()==="")
-){
+field?.trim()==="")){
     throw new ApiError(400,"All fields are required")
 }
 const existedUser= await User.findOne({
@@ -270,6 +269,72 @@ const updateUserCoverImage=asyncHandler(async(req,res)=>{
         return res
         .status(200)
         .json(new ApiResponse(200,user,"CoverImage updated SuccessFully"))
+})
+const getUserChannelProfile=asyncHandler(async(req,res)=>{
+    const {username}=req.param
+    if(!username?.trim()){
+        throw new ApiError(401,"Username is not present ");
+    }
+    const channel=User.aggregate([
+        {
+            $match:{
+                username : username?.toLowerCase()
+            }
+        },
+        {
+            $lookup:{
+                from:"subscribers",
+                localField:"_id",
+                foreignField:"channel",
+                as:"subscriber"
+            }
+        },
+        {
+            $lookup:{
+                from:"subscribers",
+                localField:"_id",
+                foreignField:"subscriber",
+                as:"subscribedTo"
+            }
+        },
+        {
+            $addFields:
+            {
+                subscriberCount:{
+                    $size:"subscriber"
+                },
+                channnelSubscribedToCount:{
+                    $size:"subscribedTo"
+                },
+                isSubscribe:{
+                    if:{$in:[req.user?._id,"$subscriber.subscribe"]},
+                    then:true,
+                    else:false
+                }
+            }
+        },
+        {
+            $project:{
+                fullname:1,
+                username:1,
+                subscriberCount:1,
+                channnelSubscribedToCount:1,
+                email:1,
+                avatar:1,
+                coverImage:1,
+                isSubscribe:1
+            }
+        }
+    ])
+    if(!channel?.length){
+        throw new ApiError(401,"Channel Dose Not Exist ");
+        
+    }
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200,channel[0],"User Channel Fetched SuccessFully")
+    )
 })
 export {
     registerUser,
