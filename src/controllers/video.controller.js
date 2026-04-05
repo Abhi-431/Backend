@@ -61,12 +61,12 @@ const getVideoById = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Video not found");
   }
 
-  // 🔐 Publish / ownership check
+  //  Publish / ownership check
   if (!video.isPublished && video.owner._id.toString() !== req.user?.id) {
-    throw new ApiError(403, "This video is not published");
+    throw new ApiError(403, "Video is Removed by user ");
   }
 
-  // 👁️ Increment views AFTER access check
+  // Increment views AFTER access check
   video.views += 1;
   await video.save({ validateBeforeSave: false });
 
@@ -78,33 +78,38 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 const getAllVideos=asyncHandler(async(req,res)=>{
     const {page=1,limit=10,query,sortBy,sortType,userId}=req.query
-    const filter={
-        isPublished:true
-    }
-     if(userId){
-        filter.owner=userId
-    }
-     if(query){
-        filter.$or=[
-            {title:{$regex :query,$options:"i"}},
-            {description:{$regex :query,$options:"i"}}
-        ]
-    }
-    const sortOptions={
-        [sortBy]:sortType==="asc"?1:-1
-    }
+    
 
-   const skip= (page-1)*limit;
 
-    const videos=await Video.find(filter)
-    .sort(sortOptions)
-    .skip(skip)
-    .limit(Number(limit))
-    .populate("owner","username avatar")
 
-    if(videos.length===0){
-        throw new ApiError(400,"No Video is present");
-    }
+
+
+
+
+//     const filter={
+//         isPublished:true
+//     }
+//      if(userId){
+//         filter.owner=userId
+//     }
+//      if(query){
+//         filter.$or=[
+//             {title:{$regex :query,$options:"i"}},
+//             {description:{$regex :query,$options:"i"}}
+//         ]
+//     }
+//     const sortOptions={
+//         [sortBy]:sortType==="asc"?1:-1
+//     }
+
+//    const skip= (page-1)*limit;
+
+//     const videos=await Video.find(filter)
+//     .sort(sortOptions)
+//     .skip(skip)
+//     .limit(Number(limit))
+//     .populate("owner","username avatar")
+
    return res
    .status(200)
    .json(new ApiResponse(200,videos,"all Videos Fetched SuccessFully "))
@@ -196,7 +201,7 @@ const togglePublish=asyncHandler(async(req,res)=>{
     .json(new ApiResponse(200,video,"Video toggle successFully"))
 })
 export{
-    publishVideo,
+    publishAVideo,
     getVideoById,
     getAllVideos,
     updateVideo,

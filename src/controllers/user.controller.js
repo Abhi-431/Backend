@@ -198,7 +198,7 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
 })
 const changeCurrentPass=asyncHandler(async(req,res)=>{
     const {oldpassword,newpassword}=req.body;
-    const user=User.findByIdAndUpdate(req.user?._id)
+    const user=User.findById(req.user?._id)
     const isPasswordCorrect=await user.isPasswordCorrect(oldpassword)
     if(!isPasswordCorrect){
         throw new ApiError(401,"Entered password is wrong"); 
@@ -214,7 +214,7 @@ const updateUserDetails=asyncHandler(async (req,res) => {
     if(!(fullname||email)){
         throw new ApiError(401,"Eneter required fields");
     }
-    const user=User.findByIdAndUpdate(req.user?._id,
+    const user= await User.findByIdAndUpdate(req.user?._id,
         {
             $set:{
                 fullname:fullname,
