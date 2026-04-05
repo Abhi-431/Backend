@@ -4,7 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadONCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { Video } from "../models/video.model.js";
 
 
@@ -15,10 +15,7 @@ const publishAVideo=asyncHandler(async(req,res)=>{
     if([title,description].some((field)=>//read it 
 field?.trim()===""))
     {
-        throw new ApiError(401,"All fields are Required");
-    }
-    if(typeof isPublished!=="boolean"){
-        throw new ApiError(401,"Is publish is a boolean");  
+        throw new ApiError(400,"All fields are Required");
     }
 
     const videoFileLocalpath=req.files?.videoFile[0]?.path
@@ -41,6 +38,7 @@ if (!videoFile?.url || !thumbnail?.url) {
         duration:videoFile.duration,
         owner:req.user.id
     })
+
 return res.
 status(200)
 .json(new ApiResponse(200,video,"video uploded successfully"))
@@ -50,29 +48,160 @@ status(200)
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  if (!videoId?.trim()) {
-    throw new ApiError(400, "Video id is required");
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Video id is valid");
+  }
+  if (!isValidObjectId(req?.user?._id)) {
+    throw new ApiError(400, "User is not valid");
   }
 
-  const video = await Video.findById(videoId)
-    .populate("owner", "username avatar");
+  const video=await Video.aggregate([
+    {
+        $match:{
+            _id:new mongoose.Types.ObjectId(videoId)
+        }
+    },
+    {
+        $lookup:{
+            from:"likes",
+            localField:"_id",
+            foreignField:"video",
+            as:"likes"
+        }
+    },{
+        $lookup:{
+            from:"users",
+            localField:"owner",
+            foreignField:"_id",
+            as:"owner",
+            pipeline:[
+                {
+                    $lookup:{
+                        from:"subscriptions",
+                        localField:"_id",
+                        foreignField:"channel",
+                        as:"subscriber"
+                    }
+                },
+                {
+                    $addFields:{
+                        subscriberCount:
+                        { 
+                            $size:"$subscriber"
+                        },
+                        isSubscribed:{
+                            $cond:{
 
+                                $if:{
+                                    $in:[
+                                        req.user?._id,
+                                        "$subscribers.subscriber"
+                                    ]
+                                },
+                                then:true,
+                                else:false
+                            }
+                        }
+                    }
+                },
+                {
+                    $project:{
+                        username:1,
+                        "avatar.url":1,
+                        subscriberCount:1,
+                        isSubscribed:1
+                    }
+                }
+            ]
+        }
+        
+    },
+    {
+        $addFields:{
+            likesCount:{
+                $size:"$likes"
+            },
+            owner:{
+                $first:"$owner"
+            },
+            isLiked:{
+                $cond:{
+                    $if:{$in:[req.user?._id,"$likes.likedBy"]},
+                    then: true,
+                    else: false
+                }
+            }
+        }
+    },
+    {
+        $project:
+        {
+             "videoFile.url": 1,
+                title: 1,
+                description: 1,
+                views: 1,
+                createdAt: 1,
+                duration: 1,
+                comments: 1,
+                owner: 1,
+                likesCount: 1,
+                isLiked: 1
+
+        }
+    }
+  ])
   if (!video) {
-    throw new ApiError(404, "Video not found");
-  }
+        throw new ApiError(500, "failed to fetch video");
+    }
 
-  //  Publish / ownership check
-  if (!video.isPublished && video.owner._id.toString() !== req.user?.id) {
-    throw new ApiError(403, "Video is Removed by user ");
-  }
+    // increment views if video fetched successfully
+    await Video.findByIdAndUpdate(videoId, {
+        $inc: {
+            views: 1
+        }
+    });
 
-  // Increment views AFTER access check
-  video.views += 1;
-  await video.save({ validateBeforeSave: false });
+    // add this video to user watch history
+    await User.findByIdAndUpdate(req.user?._id, {
+        $addToSet: {
+            watchHistory: videoId
+        }
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//   const video = await Video.findById(videoId)
+//     .populate("owner", "username avatar");
+
+//   if (!video) {
+//     throw new ApiError(404, "Video not found");
+//   }
+
+//   //  Publish / ownership check
+//   if (!video.isPublished && video.owner._id.toString() !== req.user?.id) {
+//     throw new ApiError(403, "Video is Removed by user ");
+//   }
+
+//   // Increment views AFTER access check
+//   video.views += 1;
+//   await video.save({ validateBeforeSave: false });
 
   return res
     .status(200)
-    .json(new ApiResponse(200, video, "Video fetched successfully"));
+    .json(new ApiResponse(200, video[0], "Video fetched successfully"));
 });
 
 
