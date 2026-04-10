@@ -107,7 +107,7 @@ const getVideoById = asyncHandler(async (req, res) => {
                 {
                     $project:{
                         username:1,
-                        "avatar.url":1,
+                        avatar:1,
                         subscriberCount:1,
                         isSubscribed:1
                     }
@@ -136,7 +136,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     {
         $project:
         {
-             "videoFile.url": 1,
+             videofile: 1,
                 title: 1,
                 description: 1,
                 views: 1,
@@ -146,7 +146,6 @@ const getVideoById = asyncHandler(async (req, res) => {
                 owner: 1,
                 likesCount: 1,
                 isLiked: 1
-
         }
     }
   ])
@@ -207,14 +206,7 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 const getAllVideos=asyncHandler(async(req,res)=>{
     const {page=1,limit=10,query,sortBy,sortType,userId}=req.query
-    
-
-
-
-
-
-
-
+    const pipeline =[]
 //     const filter={
 //         isPublished:true
 //     }
@@ -316,15 +308,32 @@ const deleteVideo=asyncHandler(async(req,res)=>{
 })
 const togglePublish=asyncHandler(async(req,res)=>{
     const {videoId}=req.params
-    if(!videoId){
+    if(!isValidObjectId(videoId)){
         throw new ApiError(400,"VideoId is required");
     }
+
     const video=await Video.findById(videoId)
+
     if(!video){
         throw new ApiError(400,"Video not found");
     }
-    video.isPublished = !video.isPublished
-    await video.save({ validateBeforeSave: false });
+    if(!video.owner.toString!==req.user?._id.toString()){
+        throw new ApiError(400,"You can't change the publish status you are not the owner");
+        
+    }
+   const toggledVideoPublish = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set: {
+                isPublished: !video?.isPublished
+            }
+        },
+        { new: true }
+    );
+
+    if (!toggledVideoPublish) {
+        throw new ApiError(500, "Failed to toogle video publish status");
+    }
     return res
     .status(200)
     .json(new ApiResponse(200,video,"Video toggle successFully"))
