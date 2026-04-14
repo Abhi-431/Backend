@@ -20,30 +20,43 @@ field?.trim()===""))
 
     const videoFileLocalpath=req.files?.videoFile[0]?.path
     const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
-   if (!videoFileLocalpath || !thumbnailLocalPath) {
-    throw new ApiError(400, "Video and thumbnail are required");
+   if (!videoFileLocalpath )  {
+    throw new ApiError(400, "Video are required");
   }
+  if(!thumbnailLocalPath){
+    throw new ApiError(400, "Video are required");
+  }
+  console.log("hii")
     const videoFile=await uploadONCloudinary(videoFileLocalpath)
     const thumbnail=await uploadONCloudinary(thumbnailLocalPath)
+    console.log(thumbnail)
+    console.log(videoFile)
     
-if (!videoFile?.url || !thumbnail?.url) {
+if (!videoFile)  {
     throw new ApiError(500, "File upload failed");
+  }
+  if(!thumbnail) {
+     throw new ApiError(500, "File upload failed");
   }
     const video=await Video.create({
         description,
         title,
-        isPublished,
+        isPublished:false,
         thumbnail:thumbnail.url,
         videoFile:videoFile.url,
         duration:videoFile.duration,
         owner:req.user.id
     })
+    const videoUploaded = await Video.findById(video._id);
+
+     if (!videoUploaded) {
+       throw new ApiError(500, "videoUpload failed please try again !!!");
+    }
 
 return res.
 status(200)
 .json(new ApiResponse(200,video,"video uploded successfully"))
 })
-
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
@@ -136,7 +149,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     {
         $project:
         {
-             videofile: 1,
+             videoFile: 1,
                 title: 1,
                 description: 1,
                 views: 1,
