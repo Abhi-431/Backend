@@ -19,7 +19,7 @@ field?.trim()===""))
     }
 
     const videoFileLocalpath=req.files?.videoFile[0]?.path
-    const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
+    const thumbnailLocalPath = req.files?.thumbnail[0]?.path;;
    if (!videoFileLocalpath )  {
     throw new ApiError(400, "Video are required");
   }
@@ -149,7 +149,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     {
         $project:
         {
-             videoFile: 1,
+             "videoFile.url": 1,
                 title: 1,
                 description: 1,
                 views: 1,
@@ -216,7 +216,6 @@ const getVideoById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, video[0], "Video fetched successfully"));
 });
 
-
 const getAllVideos=asyncHandler(async(req,res)=>{
     const {page=1,limit=10,query,sortBy,sortType,userId}=req.query
     const pipeline =[]
@@ -254,8 +253,8 @@ const updateVideo=asyncHandler(async(req,res)=>{
     const {videoId}=req.params
     const {title,description}=req.body
     //Check video id is present 
-    if(!videoId || videoId.trim()===""){
-        throw new ApiError(400,"Video Id required ");
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(400,"Invalid videoId ");
         
     }
 //Alternate method 
@@ -270,12 +269,19 @@ const updateVideo=asyncHandler(async(req,res)=>{
     const video=await Video.findById(videoId)
     //  Video is fetched by id 
     if(!video){
-        throw new Error(400,"Video not found");
+        throw new Error(404,"Video not found");
     }
      //  Ownership check (VERY IMPORTANT)
-    if (video.owner.toString() !== req.user._id.toString()) {
-        throw new ApiError(403, "You are not allowed to update this video");
+
+
+    if (video?.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError
+            (403,
+             "You are not allowed to update this video"
+            );
     }
+
+
 
    //If thumbnail provided upload else use the prev one 
    let thumbnailUrl=video.thumbnail
@@ -301,28 +307,38 @@ const updateVideo=asyncHandler(async(req,res)=>{
     
     return res
     .status(200)
-    .json(new ApiResponse(200,updatedVideo,"Video updfated successfully "))
+    .json(new ApiResponse(200,updatedVideo,"Video updated successfully "))
 })
 
 const deleteVideo=asyncHandler(async(req,res)=>{
-    const {id}=req.params
-    const video=await Video.findById(id)
-    if(!video){
-        throw new ApiError(404,"Video Id is required");   
+    const {videoId}=req.params
+    
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(404,"Invalid videoId");   
     }
-    if(video.owner.toString() !== req.user._id.toString()){
-        throw new ApiError(404,"Unauthorized access");
+    const video=await Video.findById(videoId)
+    if(!video){
+        throw new ApiError(404,"No video found");
         
     }
-    await Video.findByIdAndDelete(id)
+    if(video.owner.toString() !== req.user._id.toString()){
+        throw new ApiError(400,"Unauthorized access");
+        
+    }
+    const deltedVideo=await Video.findByIdAndDelete(video?._id)
+    if(!deleteVideo){
+        throw new Error(400,"Failed to delete the video");
+        
+    }
     return res
     .status(200)
     .json(new ApiResponse(200,{},"Video deleted SuccessFully "))
 })
+
 const togglePublish=asyncHandler(async(req,res)=>{
     const {videoId}=req.params
     if(!isValidObjectId(videoId)){
-        throw new ApiError(400,"VideoId is required");
+        throw new ApiError(400,"Invalid videoId");
     }
 
     const video=await Video.findById(videoId)
