@@ -4,6 +4,7 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { Video } from "../models/video.model.js"
+import { Like } from "../models/like.model.js"
 
 
 const getVideoComments=asyncHandler(async(req,res)=>{
@@ -114,11 +115,62 @@ const addComment=asyncHandler(async (req,res) => {
     .json(new ApiResponse(200,comment,"Comment added SuccessFully"))
 })
 
-// const updateComment=asyncHandler(async(req,res)=>{
-//     const {videoId}
-// })
+const updateComment=asyncHandler(async(req,res)=>{
+    const {commentId}=req.params
+    const {content}=req.body
+
+    if(!isValidObjectId(commentId)){
+        throw new ApiError(400,"Invalid VideoId");
+    }
+
+    const comment=await CommentfindById(commentId)
+    if(!comment){
+        throw new ApiError(400,"Comment not found");
+    }
+
+    if(comment?.owner?.toString()!==req.user?._id.toString){
+        throw new ApiError(400,"You are not the owner so you are unabled to change the password ");
+    }
+
+    const updatedComment=await Comment.findByIdAndUpdate(comment?._id,{
+        $set:{
+            content
+        }
+    },{new:true})
+
+     if (!updatedComment) {
+        throw new ApiError(500, "Failed to edit comment please try again");
+    }
+
+
+    return res
+   .status(200)
+    .json(new ApiResponse(200,updatedComment,"comment updated successFully" ))
+})
+
+const deleteComment=asyncHandler(async(req,res)=>{
+    const {commentId}=req.params
+    const comment=await Comment.findById(commentId)
+
+    if(!comment){
+        throw new ApiError(404,"Comment not Found");
+    }
+
+    if(comment?.owner.toString()!==req.user?._id.toString()){
+        throw new ApiError(400,"Only owner able to delete the comment ");
+    }
+    await Comment.findByIdAndDelete(commentId);
+    await Like.deleteMany({
+        comment:commentId,
+        likedBy:req.user
+    })
+    return res
+    .status(200)
+    .json(new ApiResponse(200,{commentId},"Comment deleted succesfully "))
+})
 export {
     getVideoComments,
     addComment,
+    updateComment
 }
 
