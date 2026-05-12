@@ -19,10 +19,10 @@ const getChannelStats=asyncHandler(async(req,res)=>{
                 channel:new mongoose.Types.ObjejecId(userId)
             }
         },
-             {
-    $group: {
-      _id: null,
-      subscribersCount: { $sum: 1 }
+        {
+            $group: {
+            _id: null,
+            subscribersCount: { $sum: 1 }
     }
         }
 
@@ -123,8 +123,8 @@ const getChannelVideos=asyncHandler(async(req,res)=>{
         {
             $project: {
                 _id: 1,
-                "videoFile.url": 1,
-                "thumbnail.url": 1,
+                videoFile: 1,
+                thumbnail: 1,
                 title: 1,
                 description: 1,
                 createdAt: {
