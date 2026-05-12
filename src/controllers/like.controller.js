@@ -1,8 +1,8 @@
 import { isValidObjectId } from "mongoose";
-import { asyncHandler } from "../utils/asyncHandler";
-import { ApiError } from "../utils/ApiError";
-import { Like } from "../models/like.model";
-import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { Like } from "../models/like.model.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 
 
 

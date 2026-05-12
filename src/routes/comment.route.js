@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { verifyJWT } from "../middleware/auth.middleware";
-import { upload } from "../middleware/multer.middleware";
-import { addComment, deleteComment, getVideoComments, updateComment } from "../controllers/comment.controller";
+import { verifyJWT } from "../middleware/auth.middleware.js";
+import { upload } from "../middleware/multer.middleware.js";
+import { addComment, deleteComment, getVideoComments, updateComment } from "../controllers/comment.controller.js";
 
 
 

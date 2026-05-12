@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { verifyJWT } from "../middleware/auth.middleware";
-import { addTweet, deleteTweet, getUserTweet, updateTweet } from "../controllers/tweet.controller";
+import { verifyJWT } from "../middleware/auth.middleware.js";
+import { addTweet, deleteTweet, getUserTweet, updateTweet } from "../controllers/tweet.controller.js";
 
 
 
