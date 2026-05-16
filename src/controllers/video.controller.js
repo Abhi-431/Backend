@@ -57,12 +57,12 @@ return res.
 status(200)
 .json(new ApiResponse(200,video,"video uploded successfully"))
 })
-
+//
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
   if (!isValidObjectId(videoId)) {
-    throw new ApiError(400, "Video id is valid");
+    throw new ApiError(400, "Video id is invalid");
   }
   if (!isValidObjectId(req?.user?._id)) {
     throw new ApiError(400, "User is not valid");
@@ -93,19 +93,19 @@ const getVideoById = asyncHandler(async (req, res) => {
                         from:"subscriptions",
                         localField:"_id",
                         foreignField:"channel",
-                        as:"subscriber"
+                        as:"subscribers"
                     }
                 },
                 {
                     $addFields:{
                         subscriberCount:
                         { 
-                            $size:"$subscriber"
+                            $size:"$subscribers"
                         },
                         isSubscribed:{
                             $cond:{
 
-                                $if:{
+                                if:{
                                     $in:[
                                         req.user?._id,
                                         "$subscribers.subscriber"
@@ -139,7 +139,7 @@ const getVideoById = asyncHandler(async (req, res) => {
             },
             isLiked:{
                 $cond:{
-                    $if:{$in:[req.user?._id,"$likes.likedBy"]},
+                    if:{$in:[req.user?._id,"$likes.likedBy"]},
                     then: true,
                     else: false
                 }
@@ -219,29 +219,84 @@ const getVideoById = asyncHandler(async (req, res) => {
 const getAllVideos=asyncHandler(async(req,res)=>{
     const {page=1,limit=10,query,sortBy,sortType,userId}=req.query
     const pipeline =[]
-//     const filter={
-//         isPublished:true
-//     }
-//      if(userId){
-//         filter.owner=userId
-//     }
-//      if(query){
-//         filter.$or=[
-//             {title:{$regex :query,$options:"i"}},
-//             {description:{$regex :query,$options:"i"}}
-//         ]
-//     }
-//     const sortOptions={
-//         [sortBy]:sortType==="asc"?1:-1
-//     }
+    console.log(userId)// check what is user Id
+    // for using Full Text based search u need to create a search index in mongoDB atlas
+    // you can include field mapppings in search index eg.title, description, as well
+    // Field mappings specify which fields within your documents should be indexed for text search.
+    // this helps in seraching only in title, desc providing faster search results
+    // here the name of search index is 'search-videos'
+      //  Full-text search (only if query exists)
+      if (query) {
+    pipeline.push({
+      $search: {
+        index: "search-videos",
+        text: {
+          query: query,
+          path: ["title", "description"]
+        }
+      }
+    });
+  }
+   if (userId) {
+        if (!isValidObjectId(userId)) {
+            throw new ApiError(400, "Invalid userId");
+        }
 
-//    const skip= (page-1)*limit;
+        pipeline.push({
+            $match: {
+                owner: new mongoose.Types.ObjectId(userId)
+            }
+        });
+    }
 
-//     const videos=await Video.find(filter)
-//     .sort(sortOptions)
-//     .skip(skip)
-//     .limit(Number(limit))
-//     .populate("owner","username avatar")
+
+     // fetch videos only that are set isPublished as true
+    pipeline.push({ $match: { isPublished: false } });
+
+    //sortBy can be views, createdAt, duration
+    //sortType can be ascending(-1) or descending(1)
+    if (sortBy && sortType) {
+        pipeline.push({
+            $sort: {
+                [sortBy]: sortType === "asc" ? 1 : -1
+            }
+        });
+    } else {
+        pipeline.push({ $sort: { createdAt: -1 } });
+    }
+
+
+    pipeline.push(
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            username: 1,
+                            "avatar.url": 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"
+        }
+    )
+
+    const videoAggregate = Video.aggregate(pipeline);
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10)
+    };
+
+
+    const videos = await Video.aggregatePaginate(videoAggregate, options);
 
    return res
    .status(200)
