@@ -6,7 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose, { isValidObjectId } from "mongoose";
 import { Video } from "../models/video.model.js";
-
+import { deleteOnCloudinary } from "../utils/cloudinary.js";
 
 
 const publishAVideo=asyncHandler(async(req,res)=>{
@@ -67,7 +67,11 @@ const getVideoById = asyncHandler(async (req, res) => {
   if (!isValidObjectId(req?.user?._id)) {
     throw new ApiError(400, "User is not valid");
   }
-
+  const videocheck=await Video.findById(videoId);
+  if(!videocheck ){
+    throw new ApiError(404,"Video not found");
+    
+  }
   const video=await Video.aggregate([
     {
         $match:{
@@ -162,9 +166,9 @@ const getVideoById = asyncHandler(async (req, res) => {
         }
     }
   ])
-  if (!video) {
-        throw new ApiError(500, "failed to fetch video");
-    }
+  if (!video || video.length === 0) {
+  throw new ApiError(404, "Video not found");
+}
 
     // increment views if video fetched successfully
     await Video.findByIdAndUpdate(videoId, {
@@ -304,66 +308,74 @@ const getAllVideos=asyncHandler(async(req,res)=>{
 
 })
 
-const updateVideo=asyncHandler(async(req,res)=>{
-    const {videoId}=req.params
-    const {title,description}=req.body
-    //Check video id is present 
-    if(!isValidObjectId(videoId)){
-        throw new ApiError(400,"Invalid videoId ");
-        
-    }
-//Alternate method 
 
-// if ([title, description].some(field => !field || field.trim() === "")) {
-//   throw new ApiError(400, "Title and description cannot be empty");
-// }
-    //Check the title and description is provided
-    if([title,description].some((field)=>field?.trim()==="")){
-        throw new ApiError(400,"Title and Descriptin cant be empty .");
-    }
-    const video=await Video.findById(videoId)
-    //  Video is fetched by id 
-    if(!video){
-        throw new Error(404,"Video not found");
-    }
-     //  Ownership check (VERY IMPORTANT)
+const updateVideo = asyncHandler(async (req, res) => {
+     const { title, description } = req.body;
+    const { videoId } = req.params;
 
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid videoId");
+    }
+
+    if (!(title && description)) {
+        throw new ApiError(400, "title and description are required");
+    }
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+        throw new ApiError(404, "No video found");
+    }
 
     if (video?.owner.toString() !== req.user?._id.toString()) {
-        throw new ApiError
-            (403,
-             "You are not allowed to update this video"
-            );
+        throw new ApiError(
+            400,
+            "You can't edit this video as you are not the owner"
+        );
     }
 
+    //deleting old thumbnail and updating with new one
+    const thumbnailToDelete = video.thumbnail.public_id;
 
+    const thumbnailLocalPath = req.file?.path;
 
-   //If thumbnail provided upload else use the prev one 
-   let thumbnailUrl=video.thumbnail
-   const thumbnailLocalPath= req.files?.thumbnail?.[0]?.path
-   if(thumbnailLocalPath){
-    const thumbnail=await uploadONCloudinary(thumbnailLocalPath)
-    if(!thumbnail){
-        throw new ApiError(400,"Thumbnail upload Failed");
+    if (!thumbnailLocalPath) {
+        throw new ApiError(400, "thumbnail is required");
     }
-    thumbnailUrl=thumbnail.url
-   }
-   //Update video details 
-    const updatedVideo=await Video.findByIdAndUpdate(id,
+
+    const thumbnail = await uploadONCloudinary(thumbnailLocalPath);
+
+    if (!thumbnail) {
+        throw new ApiError(400, "thumbnail not found");
+    }
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
         {
-            $set: 
-            {
-                title:title,
-                description:description,
-                thumbnail:thumbnailUrl
+            $set: {
+                title,
+                description,
+                thumbnail: 
+                     thumbnail.url
+                
             }
-        },{new:true}
-    )
-    
+        },
+        { new: true }
+    );
+
+    if (!updatedVideo) {
+        throw new ApiError(500, "Failed to update video please try again");
+    }
+
+    if (updatedVideo) {
+        await deleteOnCloudinary(thumbnailToDelete);
+    }
+
     return res
-    .status(200)
-    .json(new ApiResponse(200,updatedVideo,"Video updated successfully "))
-})
+        .status(200)
+        .json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
+});
+
 
 const deleteVideo=asyncHandler(async(req,res)=>{
     const {videoId}=req.params
@@ -380,11 +392,21 @@ const deleteVideo=asyncHandler(async(req,res)=>{
         throw new ApiError(400,"Unauthorized access");
         
     }
-    const deltedVideo=await Video.findByIdAndDelete(video?._id)
-    if(!deleteVideo){
+    const deletedVideo=await Video.findByIdAndDelete(video?._id)
+    if(!deletedVideo){
         throw new Error(400,"Failed to delete the video");
-        
     }
+    await deleteOnCloudinary(video.thumbnail.public_id); // video model has thumbnail public_id stored in it->check videoModel
+    await deleteOnCloudinary(video.videoFile.public_id, "video"); // specify video while deleting video
+     // delete video likes
+    await Like.deleteMany({
+        video: videoId
+    })
+
+     // delete video comments
+    await Comment.deleteMany({
+        video: videoId,
+    })
     return res
     .status(200)
     .json(new ApiResponse(200,{},"Video deleted SuccessFully "))
@@ -401,7 +423,7 @@ const togglePublish=asyncHandler(async(req,res)=>{
     if(!video){
         throw new ApiError(400,"Video not found");
     }
-    if(!video.owner.toString!==req.user?._id.toString()){
+    if(video.owner.toString()!==req.user?._id.toString()){
         throw new ApiError(400,"You can't change the publish status you are not the owner");
         
     }
