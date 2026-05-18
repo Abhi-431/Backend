@@ -7,7 +7,7 @@ import { addComment, deleteComment, getVideoComments, updateComment } from "../c
 
 
 const router=Router()
-router.use(verifyJWT,upload.none )//Apply verify jwt to all routes
+router.use(verifyJWT,upload.none() )//Apply verify jwt to all routes
 router.route("/:videoId").get(getVideoComments).post(addComment);
 router.route("/c/:commentId").delete(deleteComment).patch(updateComment);
 

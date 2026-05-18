@@ -19,9 +19,9 @@ const getVideoComments=asyncHandler(async(req,res)=>{
         throw new ApiError(400,"Video not found");
         
     }
-    const commentAggregate= Comment.aggregate([
+    const commentAggregate=  Comment.aggregate([
         {
-            $match:mongoose.Types.ObjectId(videoId)
+            $match:{ video: new mongoose.Types.ObjectId(videoId) }
         },
         {
             $lookup:{
@@ -63,7 +63,7 @@ const getVideoComments=asyncHandler(async(req,res)=>{
                 createdAt:-1
             }
         },{
-            project:{
+            $project:{
                 content: 1,
                 createdAt: 1,
                 likesCount: 1,
@@ -97,7 +97,7 @@ const addComment=asyncHandler(async (req,res) => {
     }
     const video=await Video.findById(videoId)
     if(!video){
-        throw new Error(404,"Video not found");  
+        throw new ApiError(404,"Video not found");  
     }
     if(!content){
         throw new ApiError(400,"Content is required");  
@@ -123,12 +123,12 @@ const updateComment=asyncHandler(async(req,res)=>{
         throw new ApiError(400,"Invalid VideoId");
     }
 
-    const comment=await CommentfindById(commentId)
+    const comment=await Comment.findById(commentId)
     if(!comment){
         throw new ApiError(400,"Comment not found");
     }
 
-    if(comment?.owner?.toString()!==req.user?._id.toString){
+    if(comment?.owner?.toString()!==req.user?._id.toString()){
         throw new ApiError(400,"You are not the owner so you are unabled to change the password ");
     }
 
